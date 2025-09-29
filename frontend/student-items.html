@@ -2,125 +2,219 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>學生端 - 項目列表</title>
-    <style>
-        /* 這裡放 style.css 的內容 */
-        body { font-family: Arial, sans-serif; margin: 0; background-color: #f4f7f6; }
-        .header { background-color: #007bff; color: white; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; }
-        .container { padding: 20px 40px; max-width: 1200px; margin: 20px auto; background-color: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05); }
-        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .data-table th, .data-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn.primary { background-color: #28a745; color: white; }
-        .btn.secondary { background-color: #ffc107; color: black; }
-        .btn.link { background: none; color: white; margin-left: 15px; }
-    </style>
-</head>
+    <title id="project-title-name">項目詳情</title>
+    </head>
 <body>
     <div class="header">
-        <h1>學生項目與成績查詢</h1>
-        <div class="user-info">
-            <span id="welcome-message"></span>
-            <button id="logout-btn" class="btn link">登出</button>
+        <h1>學生項目詳情</h1>
+        </div>
+    
+    <div class="container">
+        <div class="project-info">
+            <h2><span id="project-name"></span></h2>
+            <p><strong>狀態：</strong><span id="project-status"></span></p>
+            <p><strong>截止日期：</strong><span id="project-deadline"></span></p>
+            <p id="project-description"></p>
+        </div>
+
+        <div id="submission-area">
+            <h3>檔案繳交</h3>
+            <form id="submission-form" enctype="multipart/form-data">
+                <input type="file" id="assignment-file" name="assignmentFile" required>
+                <button type="submit" class="btn primary">提交檔案並請求審核</button>
+            </form>
+            <p id="submission-message" style="color: green; margin-top: 10px;"></p>
+            <p id="current-submission" style="margin-top: 10px;"></p>
+        </div>
+
+        <div id="comment-section" style="margin-top: 30px;">
+            <h3>項目溝通留言區</h3>
+            <div id="comments-list" style="border: 1px solid #ccc; padding: 15px; max-height: 300px; overflow-y: scroll;">
+                </div>
+            <form id="comment-form" style="margin-top: 15px;">
+                <textarea id="comment-text" style="width: 100%; height: 60px;" placeholder="輸入您的留言..."></textarea>
+                <button type="submit" class="btn primary small">送出留言</button>
+            </form>
         </div>
     </div>
     
-    <div class="container">
-        <h2>我的待辦與成績</h2>
-        <table id="item-table" class="data-table">
-            <thead>
-                <tr>
-                    <th>項目名稱</th>
-                    <th>截止日期</th>
-                    <th>狀態</th>
-                    <th>分數</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td colspan="5">資料載入中...</td></tr>
-            </tbody>
-        </table>
-    </div>
-
     <script>
         const BASE_URL = 'http://localhost:5000/api';
+        
+        // --- 輔助函式 (從 URL 取得項目 ID) ---
+        function getProjectIdFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('id');
+        }
 
-        function checkAuth() {
-            const token = localStorage.getItem('token');
-            const role = localStorage.getItem('role');
-
-            if (!token || role !== 'student') {
-                alert("請先登入學生帳號！");
-                window.location.href = 'index.html'; 
-                return null;
+        document.addEventListener('DOMContentLoaded', async () => {
+            // ... (檢查登入邏輯，請沿用 index.html 的 checkAuth) ...
+            const projectId = getProjectIdFromUrl();
+            if (!projectId) {
+                alert('無效的項目 ID');
+                return;
             }
-            return token;
-        }
 
-        document.addEventListener('DOMContentLoaded', initStudentPage);
+            await loadProjectDetail(projectId);
+            
+            document.getElementById('comment-form').addEventListener('submit', handlePostComment);
+            document.getElementById('submission-form').addEventListener('submit', handleSubmitFile);
+        });
 
-        async function initStudentPage() {
-            const token = checkAuth();
-            if (!token) return;
-
-            const name = localStorage.getItem('name') || '同學';
-            document.getElementById('welcome-message').textContent = `你好，${name}！`;
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                localStorage.clear();
-                window.location.href = 'index.html';
-            });
-
-            await loadItems(token);
-        }
-
-        async function loadItems(token) {
-            const tableBody = document.querySelector('#item-table tbody');
-            tableBody.innerHTML = '<tr><td colspan="5">正在從伺服器載入資料...</td></tr>';
-
+        // --- 載入資料 ---
+        async function loadProjectDetail(projectId) {
+            const token = localStorage.getItem('token');
             try {
-                const response = await fetch(`${BASE_URL}/student/projects`, {
+                const response = await fetch(`${BASE_URL}/student/projects/${projectId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                const data = await response.json();
                 
-                if (!response.ok) {
-                    throw new Error('無法獲取項目資料');
+                document.getElementById('project-name').textContent = data.name;
+                document.getElementById('project-title-name').textContent = data.name;
+                document.getElementById('project-status').textContent = data.status;
+                document.getElementById('project-deadline').textContent = data.deadline;
+                document.getElementById('project-description').textContent = data.description;
+                
+                renderMessages(data.messages);
+                // 處理已繳交檔案的顯示
+                if (data.current_submission_url) {
+                    document.getElementById('current-submission').innerHTML = 
+                        `<a href="${data.current_submission_url}" target="_blank">查看已繳交檔案</a>`;
                 }
 
-                const items = await response.json();
-                tableBody.innerHTML = ''; 
+            } catch (e) {
+                alert('載入項目詳情失敗。');
+            }
+        }
 
-                if (items.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="5">目前沒有分配的項目。</td></td>';
-                    return;
+        // --- 渲染留言 ---
+        function renderMessages(messages) {
+            const list = document.getElementById('comments-list');
+            list.innerHTML = '';
+            const currentUserId = 'S' + localStorage.getItem('id'); // 假設 id 存儲在 localStorage
+
+            messages.forEach(comment => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '10px';
+                
+                const roleText = comment.role === 'teacher' ? '【教師】' : '【學生】';
+                div.innerHTML = `
+                    <strong>${roleText} ${comment.authorName}:</strong>
+                    <p style="margin: 5px 0 0 0;">${comment.content}</p>
+                    <span style="font-size: 0.8em; color: #666;">${comment.timestamp}</span>
+                `;
+                
+                // 撤回自己的留言功能
+                if (comment.authorId === currentUserId && comment.role === 'student') {
+                    const withdrawBtn = document.createElement('button');
+                    withdrawBtn.textContent = '撤回';
+                    withdrawBtn.className = 'btn secondary small';
+                    withdrawBtn.style.marginLeft = '10px';
+                    withdrawBtn.onclick = () => handleWithdrawComment(comment.id);
+                    div.appendChild(withdrawBtn);
                 }
+                
+                list.appendChild(div);
+            });
+            list.scrollTop = list.scrollHeight; // 滾動到底部
+        }
 
-                items.forEach(item => {
-                    const row = tableBody.insertRow();
-                    row.insertCell().textContent = item.name;
-                    row.insertCell().textContent = item.deadline;
-                    row.insertCell().textContent = item.status;
-                    row.insertCell().textContent = item.score;
-                    
-                    const actionCell = row.insertCell();
-                    let buttonText = '查看詳情';
-                    let buttonClass = 'btn-secondary';
+        // --- 事件處理：新增留言 ---
+        async function handlePostComment(e) {
+            e.preventDefault();
+            const commentTextarea = document.getElementById('comment-text');
+            const content = commentTextarea.value.trim();
+            const projectId = getProjectIdFromUrl();
+            const token = localStorage.getItem('token');
 
-                    if (item.status === '待繳交') {
-                        buttonText = '繳交/留言';
-                        buttonClass = 'btn-primary';
-                    }
-                    
-                    const actionButton = document.createElement('button');
-                    actionButton.textContent = buttonText;
-                    actionButton.className = `btn ${buttonClass}`;
-                    actionButton.onclick = () => alert(`導航至項目 ID: ${item.id} 的詳情頁面`);
+            if (!content) return alert('留言內容不能為空！');
 
-                    actionCell.appendChild(actionButton);
+            try {
+                const response = await fetch(`${BASE_URL}/student/messages/${projectId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ content })
                 });
 
+                const result = await response.json();
+
+                if (response.ok) {
+                    commentTextarea.value = ''; // 清空輸入框
+                    // 實際應使用後端返回的完整列表，這裡簡化為重新載入
+                    await loadProjectDetail(projectId);
+                } else {
+                    alert('留言失敗：' + (result.message || '伺服器錯誤'));
+                }
             } catch (error) {
-                tableBody.innerHTML = `<tr><td colspan="5" style="color:red;">錯誤: ${error.message}，請確認後端是否啟動並登入。</td></tr>`;
+                alert('連線錯誤，請確認後端是否運行。');
+            }
+        }
+
+        // --- 事件處理：撤回留言 ---
+        async function handleWithdrawComment(messageId) {
+            if (!confirm('您確定要撤回這則留言嗎？')) return;
+
+            const projectId = getProjectIdFromUrl();
+            const token = localStorage.getItem('token');
+
+            try {
+                const response = await fetch(`${BASE_URL}/student/messages/${messageId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    alert('留言撤回成功！');
+                    await loadProjectDetail(projectId); // 重新載入介面
+                } else {
+                    const result = await response.json();
+                    alert('撤回失敗：' + (result.message || '您沒有權限或留言不存在。'));
+                }
+            } catch (error) {
+                 alert('連線錯誤。');
+            }
+        }
+
+        // --- 事件處理：繳交檔案 (FormData) ---
+        async function handleSubmitFile(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('assignment-file');
+            const messageP = document.getElementById('submission-message');
+            messageP.textContent = '';
+            
+            if (fileInput.files.length === 0) {
+                return alert('請選擇一個檔案。');
+            }
+
+            const projectId = getProjectIdFromUrl();
+            const token = localStorage.getItem('token');
+            
+            // 使用 FormData 來處理檔案上傳
+            const formData = new FormData(e.target); 
+            
+            try {
+                const response = await fetch(`${BASE_URL}/student/submit/${projectId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }, // 注意：Content-Type 會被 FormData 自動設置
+                    body: formData
+                });
+                
+                const result = await response.json();
+
+                if (response.ok) {
+                    messageP.textContent = result.message;
+                    // 繳交成功後更新狀態
+                    document.getElementById('project-status').textContent = '待審核'; 
+                    // 實際應清空檔案輸入欄
+                    fileInput.value = '';
+                } else {
+                    messageP.textContent = '繳交失敗: ' + (result.message || '伺服器錯誤');
+                    messageP.style.color = 'red';
+                }
+            } catch (error) {
+                 messageP.textContent = '連線錯誤，請確認後端服務。';
+                 messageP.style.color = 'red';
             }
         }
     </script>
