@@ -66,5 +66,67 @@ router.put('/password', protect, async (req, res) => {
     // 3. 使用 newPassword 重新 save 用戶 (會觸發加密 hook)
     res.json({ message: '密碼已成功更新！' });
 });
+// ... (接續 protect 中間件和 GET /profile, GET /projects 路由)
 
+// GET /api/student/projects/:id - 獲取單個項目詳情及留言
+router.get('/projects/:id', protect, async (req, res) => {
+    const projectId = req.params.id;
+    // 實際應從資料庫查詢項目和相關留言
+    const mockProjectDetail = { 
+        id: projectId,
+        name: "期末報告",
+        description: "請提交一份關於本學期課程重點的專題報告，格式不限。",
+        deadline: "2025-12-20",
+        status: "待繳交",
+        current_submission_url: null, // 假設尚未繳交
+        messages: [ // 模擬留言
+            { id: 101, authorId: 'T999', authorName: '系統管理員(師)', role: 'teacher', content: '大家好，有任何疑問可以在此留言。', timestamp: '2025-10-10 10:00' },
+            { id: 102, authorId: 'S2023001', authorName: '測試學生', role: 'student', content: '請問報告需要頁數限制嗎？', timestamp: '2025-10-10 10:30' },
+        ]
+    };
+    res.json(mockProjectDetail);
+});
+
+// POST /api/student/messages/:projectId - 學生新增留言
+router.post('/messages/:projectId', protect, async (req, res) => {
+    const { content } = req.body;
+    const projectId = req.params.projectId;
+    const authorId = req.user.id; // 從 JWT 取得用戶 ID
+    
+    // 實際應將留言存入 Message 模型
+    // 模擬成功
+    const newMessage = { id: Date.now(), authorId: authorId, authorName: '測試學生', role: 'student', content: content, timestamp: new Date().toLocaleString() };
+    
+    // 返回包含新留言的列表，以便前端更新介面
+    const updatedMessages = [
+        // 這裡應包含舊留言 + 新留言
+        ...[/* 舊留言 */], newMessage
+    ];
+    res.status(201).json({ success: true, message: '留言成功', messages: updatedMessages });
+});
+
+// DELETE /api/student/messages/:messageId - 學生撤回留言
+router.delete('/messages/:messageId', protect, async (req, res) => {
+    const messageId = req.params.messageId;
+    const studentId = req.user.id;
+
+    // 實際應：
+    // 1. 查詢該留言 (Message.findById(messageId))
+    // 2. 檢查留言的 authorId 是否等於 studentId (只能撤回自己的)
+    // 3. 執行 Message.findByIdAndDelete(messageId)
+    
+    // 模擬成功
+    res.json({ success: true, message: '留言已撤回' });
+});
+
+// POST /api/student/submit/:projectId - 繳交檔案 (需要檔案上傳庫，如 multer)
+// 注意：檔案上傳較為複雜，需要使用 multer 和雲端儲存服務。這裡僅展示接口邏輯。
+router.post('/submit/:projectId', protect, async (req, res) => {
+    // 實際應使用 multer 處理 req.file 
+    // 1. 將檔案存入雲端 (例如 AWS S3)
+    // 2. 更新 Project 或 Submission 模型中的 submission_url 和 status = '待審核'
+    
+    // 模擬成功
+    res.json({ success: true, message: '檔案繳交成功，等待教師審核' });
+});
 module.exports = router;
