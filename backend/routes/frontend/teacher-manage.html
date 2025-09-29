@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>教師端 - 學生與項目管理</title>
+    <style>
+        /* 這裡放 style.css 的內容 */
+        /* ... 沿用並擴展登入頁的樣式 ... */
+        .page-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 200px; background-color: #343a40; color: white; padding: 20px; }
+        .sidebar a { display: block; padding: 10px; margin-bottom: 5px; color: white; text-decoration: none; border-radius: 4px; transition: background-color 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background-color: #007bff; }
+        .main-content { flex-grow: 1; padding: 30px; }
+        .data-table th, .data-table td { font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>教師管理平台</h1>
+        <div class="user-info">
+            <span id="welcome-message"></span>
+            <button id="logout-btn" class="btn link">登出</button>
+        </div>
+    </div>
+    
+    <div class="page-layout">
+        <div class="sidebar">
+            <a href="#students" id="nav-students" class="active">學生資料與成績</a>
+            <a href="#submissions" id="nav-submissions">作業審核 (<span id="pending-count">0</span>)</a>
+            <a href="#messages" id="nav-messages">留言管理</a>
+            <a href="#" id="export-btn">匯出報表 (Excel)</a>
+        </div>
+        
+        <div class="main-content">
+            <div id="view-container">
+                <h2>學生資料與成績總覽</h2>
+                <button id="add-student-btn" class="btn primary" style="margin-bottom: 15px;">+ 新增學生</button>
+
+                <table id="students-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>學號</th>
+                            <th>姓名</th>
+                            <th>班級</th>
+                            <th>分配項目數</th>
+                            <th>待審核數</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6">資料載入中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:5000/api';
+        
+        // --- 授權驗證與初始化 ---
+        function checkTeacherAuth() {
+            const token = localStorage.getItem('token');
+            const role = localStorage.getItem('role');
+            if (!token || role !== 'teacher') {
+                alert("請先以教師身份登入！");
+                window.location.href = 'index.html'; 
+                return null;
+            }
+            return token;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = checkTeacherAuth();
+            if (!token) return;
+
+            const name = localStorage.getItem('name') || '教師';
+            document.getElementById('welcome-message').textContent = `歡迎您，${name}老師！`;
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.clear();
+                window.location.href = 'index.html';
+            });
+            
+            // 載入核心數據
+            await loadStudents(token);
+            
+            // 註冊導航與匯出事件
+            document.getElementById('export-btn').addEventListener('click', handleExport);
+            // 這裡可以根據 hash 變化實現單頁面應用 (SPA) 模擬
+        });
+
+        // --- 載入學生數據與渲染表格 ---
+        async function loadStudents(token) {
+            const tableBody = document.querySelector('#students-table tbody');
+            tableBody.innerHTML = '<tr><td colspan="6">正在載入學生數據...</td></tr>';
+
+            try {
+                const response = await fetch(`${BASE_URL}/teacher/students`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const students = await response.json();
+                
+                tableBody.innerHTML = ''; 
+
+                students.forEach(student => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = student.userId;
+                    row.insertCell().textContent = student.name;
+                    row.insertCell().textContent = student.class;
+                    row.insertCell().textContent = student.projectCount;
+                    row.insertCell().textContent = student.pendingReview; // 顯示待審核數
+                    
+                    const actionCell = row.insertCell();
+                    
+                    // 編輯資料按鈕
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = '編輯';
+                    editBtn.className = 'btn secondary';
+                    editBtn.onclick = () => alert(`編輯 ${student.name} 的資料`);
+                    actionCell.appendChild(editBtn);
+
+                    // 分配項目按鈕
+                    const assignBtn = document.createElement('button');
+                    assignBtn.textContent = '分配項目';
+                    assignBtn.className = 'btn primary';
+                    assignBtn.style.marginLeft = '10px';
+                    assignBtn.onclick = () => alert(`為 ${student.name} 分配項目`);
+                    actionCell.appendChild(assignBtn);
+                });
+
+            } catch (error) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="color:red;">錯誤: 無法載入學生資料。</td></tr>`;
+                console.error('Load Students Error:', error);
+            }
+        }
+        
+        // --- 處理匯出報表功能 ---
+        async function handleExport(e) {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            try {
+                // 這裡發起請求，伺服器應返回檔案流
+                const response = await fetch(`${BASE_URL}/teacher/export`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    // 由於這是模擬，實際中您需要處理 Blob 或 ArrayBuffer 來下載檔案
+                    alert('後端已處理匯出請求，請檢查您的下載資料夾。');
+                } else {
+                    alert('匯出失敗，權限不足或伺服器錯誤。');
+                }
+            } catch (error) {
+                 alert('連線錯誤，請檢查後端服務。');
+            }
+        }
+        
+        // TODO: 添加 loadSubmissions, loadMessages, handleReview 等函式
+    </script>
+</body>
+</html>
