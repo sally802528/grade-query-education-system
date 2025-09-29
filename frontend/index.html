@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>成績查詢系統 - 登入</title>
+    <style>
+        /* 這裡放 style.css 的內容 */
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { max-width: 400px; padding: 30px; background-color: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); text-align: center; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .input-group input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; background-color: #007bff; color: white; width: 100%; }
+        .message { margin-top: 15px; font-weight: bold; color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>成績查詢系統</h2>
+        <p>請使用教師: T999/password123 或自行創建學生帳號</p>
+        <form id="login-form">
+            <div class="input-group">
+                <label for="user-id">學號 / 工號</label>
+                <input type="text" id="user-id" value="T999" required>
+            </div>
+            <div class="input-group">
+                <label for="password">密碼</label>
+                <input type="password" id="password" value="password123" required>
+            </div>
+            <button type="submit" class="btn">登 入</button>
+            <div id="login-message" class="message"></div>
+        </form>
+    </div>
+
+    <script>
+        // 模擬的 API 地址
+        const BASE_URL = 'http://localhost:5000/api';
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('user-id').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('login-message');
+            messageDiv.textContent = '';
+
+            try {
+                const response = await fetch(`${BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, password }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // 登入成功
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('role', data.role);
+                    localStorage.setItem('name', data.name);
+                    
+                    if (data.role === 'student') {
+                        window.location.href = 'student-items.html';
+                    } else if (data.role === 'teacher') {
+                        window.location.href = 'teacher-manage.html';
+                    }
+                } else {
+                    // 登入失敗
+                    messageDiv.textContent = data.message || '登入失敗，請檢查網路或帳密。';
+                }
+            } catch (error) {
+                messageDiv.textContent = '連線錯誤，請確認後端伺服器已啟動。';
+                console.error('Login Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
