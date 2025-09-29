@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>學生端 - 項目列表</title>
+    <style>
+        /* 這裡放 style.css 的內容 */
+        body { font-family: Arial, sans-serif; margin: 0; background-color: #f4f7f6; }
+        .header { background-color: #007bff; color: white; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; }
+        .container { padding: 20px 40px; max-width: 1200px; margin: 20px auto; background-color: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05); }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .data-table th, .data-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn.primary { background-color: #28a745; color: white; }
+        .btn.secondary { background-color: #ffc107; color: black; }
+        .btn.link { background: none; color: white; margin-left: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>學生項目與成績查詢</h1>
+        <div class="user-info">
+            <span id="welcome-message"></span>
+            <button id="logout-btn" class="btn link">登出</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>我的待辦與成績</h2>
+        <table id="item-table" class="data-table">
+            <thead>
+                <tr>
+                    <th>項目名稱</th>
+                    <th>截止日期</th>
+                    <th>狀態</th>
+                    <th>分數</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="5">資料載入中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:5000/api';
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const role = localStorage.getItem('role');
+
+            if (!token || role !== 'student') {
+                alert("請先登入學生帳號！");
+                window.location.href = 'index.html'; 
+                return null;
+            }
+            return token;
+        }
+
+        document.addEventListener('DOMContentLoaded', initStudentPage);
+
+        async function initStudentPage() {
+            const token = checkAuth();
+            if (!token) return;
+
+            const name = localStorage.getItem('name') || '同學';
+            document.getElementById('welcome-message').textContent = `你好，${name}！`;
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.clear();
+                window.location.href = 'index.html';
+            });
+
+            await loadItems(token);
+        }
+
+        async function loadItems(token) {
+            const tableBody = document.querySelector('#item-table tbody');
+            tableBody.innerHTML = '<tr><td colspan="5">正在從伺服器載入資料...</td></tr>';
+
+            try {
+                const response = await fetch(`${BASE_URL}/student/projects`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('無法獲取項目資料');
+                }
+
+                const items = await response.json();
+                tableBody.innerHTML = ''; 
+
+                if (items.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5">目前沒有分配的項目。</td></td>';
+                    return;
+                }
+
+                items.forEach(item => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = item.name;
+                    row.insertCell().textContent = item.deadline;
+                    row.insertCell().textContent = item.status;
+                    row.insertCell().textContent = item.score;
+                    
+                    const actionCell = row.insertCell();
+                    let buttonText = '查看詳情';
+                    let buttonClass = 'btn-secondary';
+
+                    if (item.status === '待繳交') {
+                        buttonText = '繳交/留言';
+                        buttonClass = 'btn-primary';
+                    }
+                    
+                    const actionButton = document.createElement('button');
+                    actionButton.textContent = buttonText;
+                    actionButton.className = `btn ${buttonClass}`;
+                    actionButton.onclick = () => alert(`導航至項目 ID: ${item.id} 的詳情頁面`);
+
+                    actionCell.appendChild(actionButton);
+                });
+
+            } catch (error) {
+                tableBody.innerHTML = `<tr><td colspan="5" style="color:red;">錯誤: ${error.message}，請確認後端是否啟動並登入。</td></tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
